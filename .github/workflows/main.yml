@@ -2,26 +2,20 @@ name: Ultimate Auto Dev Studio
 
 on:
   workflow_dispatch:
-    inputs:
-      commit_msg:
-        description: 'Auto Commit Message (Optional)'
-        required: false
-        default: 'Auto-saved work from remote session'
 
 jobs:
   development-workspace:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # সর্বোচ্চ ৬ ঘণ্টা সেশন
+    timeout-minutes: 360
 
     steps:
-    - name: Checkout Repository (Latest Code)
+    - name: Checkout Repository
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    - name: 1. Auto-Install All Tools & Desktop Environment
+    - name: 1. Install All Tools & XFCE Desktop
       run: |
-        echo "=== Updating System & Installing Dependencies ==="
         sudo apt update && sudo apt upgrade -y
         sudo apt install -y \
           build-essential cmake gcc g++ gdb \
@@ -29,54 +23,37 @@ jobs:
           ffmpeg git curl wget unzip zip p7zip-full \
           zipalign apksigner xfce4 xfce4-goodies tightvncserver novnc python3-websockify
 
-        echo "=== Installing APKTool ==="
+        # APKTool
         sudo wget -q https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool -O /usr/local/bin/apktool
         sudo wget -q https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O /usr/local/bin/apktool.jar
         sudo chmod +x /usr/local/bin/apktool /usr/local/bin/apktool.jar
 
-        echo "=== Installing JADX GUI ==="
+        # JADX GUI
         wget -q https://github.com/skylot/jadx/releases/download/v1.5.0/jadx-1.5.0.zip -O /tmp/jadx.zip
         sudo unzip -q /tmp/jadx.zip -d /opt/jadx
         sudo ln -sf /opt/jadx/bin/jadx-gui /usr/local/bin/jadx-gui
 
+        # Node.js & Localtunnel for Direct Web Access
+        sudo apt install -y nodejs npm
+        sudo npm install -g localtunnel
+
     - name: 2. Start VNC & noVNC Web UI
       run: |
         mkdir -p ~/.vnc
-        echo "developer123" | vncpasswd -f > ~/.vnc/passwd
+        echo "dev12345" | vncpasswd -f > ~/.vnc/passwd
         chmod 600 ~/.vnc/passwd
         vncserver :1 -geometry 1366x768 -depth 24
-        nohup websockify --web /usr/share/novnc/ 6080 localhost:5901 & > /dev/null 2>&1 &
+        nohup websockify --web /usr/share/novnc/ 6080 localhost:5901 &> /dev/null &
 
-    - name: 3. Configure Git Auto-Sync (Anti-Loss Protection)
+    - name: 3. Generate Public Link (Direct UI Access)
       run: |
-        git config --global user.name "GitHub Action Bot"
-        git config --global user.email "action@github.com"
-
-    - name: 4. Background Auto-Pusher Script (প্ৰতি ৫ মিনিটে অটো পুশ হবে)
+        echo "===================================================="
+        echo "YOUR DIRECT UBUNTU DESKTOP WEB LINK IS BELOW:"
+        echo "===================================================="
+        lt --port 6080 &
+        sleep 5 # লিংক জেনারেট হওয়ার জন্য ৫ সেকেন্ড অপেক্ষা
+        
+    - name: 4. Keep Session Alive (Infinite Wait)
       run: |
-        cat << 'EOF' > /tmp/auto_sync.sh
-        while true; do
-          sleep 300 # প্রতি ৫ মিনিট পর পর চেক করবে
-          cd $GITHUB_WORKSPACE
-          if [[ -n $(git status --porcelain) ]]; then
-            git add .
-            git commit -m "Auto-sync: saved work progress [skip ci]" || true
-            git push origin HEAD || true
-            echo "Changes auto-pushed to GitHub!"
-          fi
-        done
-        EOF
-        nohup bash /tmp/auto_sync.sh &> /dev/null &
-
-    - name: 5. Launch Remote Access Session
-      uses: mxschmitt/action-tmate@v3
-      with:
-        sudo: true
-
-    - name: 6. Final Sync on Session Close (সেশন বন্ধ হওয়ার সময় সেভ হবে)
-      if: always()
-      run: |
-        cd $GITHUB_WORKSPACE
-        git add .
-        git commit -m "${{ github.event.inputs.commit_msg }} [Final Save]" || echo "No changes to commit"
-        git push origin HEAD || echo "Push failed or no changes"
+        echo "Environment is running. Will stay active for 6 hours."
+        while true; do sleep 60; done
